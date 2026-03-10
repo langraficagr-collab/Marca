@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Ultimate Editor Pro</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        body, html { margin: 0; padding: 0; height: 100vh; width: 100vw; overflow: hidden; background: #020617; }
+        #root { height: 100vh; display: flex; flex-direction: column; }
+        .video-container { position: relative; background: #000; border-radius: 1.5rem; overflow: hidden; border: 1px solid #1e293b; flex: 1; min-height: 0; }
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #334155; border-radius: 10px; }
+        .glow-button { transition: all 0.3s ease; box-shadow: 0 0 0 0 rgba(99, 102, 241, 0); }
+        .glow-button:active { transform: scale(0.95); }
+        .manual-active { border: 2px solid #6366f1; box-shadow: 0 0 15px rgba(99, 102, 241, 0.4); }
+    </style>
+</head>
+<body class="text-slate-100 font-sans">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useReducer, useRef, useEffect, useState } = React;
+
+        const Icon = ({ name, size = 18, className = "" }) => {
+            useEffect(() => { if(window.lucide) lucide.createIcons(); }, [name]);
+            return <i data-lucide={name} style={{ width: size, height: size }} className={className}></i>;
+        };
+
+        const initialState = {
+            videoSrc: null, processedVideoSrc: null, selections: [],
+            isProcessing: false, progress: 0, isPlaying: false,
+            blurValue: 50, status: 'Sistema Pronto', mimeType: 'video/webm'
+        };
+
+        function reducer(state, action) {
+            switch (action.type) {
+                case 'LOAD': return { ...state, videoSrc: action.payload, selections: [], processedVideoSrc: null, status: 'Vídeo Importado' };
+                case 'SET_STATUS': return { ...state, status: action.payload };
+                case 'SET_PROC': return { ...state, isProcessing: action.payload };
+                case 'SET_PROG': return { ...state, progress: action.payload };
+                case 'SET_SEL': return { ...state, selections: action.payload };
+                case 'SET_BLUR': return { ...state, blurValue: action.payload };
+                case 'DONE': return { ...state, processedVideoSrc: action.payload, isProcessing: false, status: 'Concluído' };
+                default: return state;
+            }
+        }
+
+        function App() {
+            const [state, dispatch] = useReducer(reducer, initialState);
+            const [manualMode, setManualMode] = useState(false);
+            const videoRef = useRef(null);
+            const canvasRef = useRef(null);
+            const selectionStart = useRef(null);
+
+            const syncCanvas = () => {
+                if (videoRef.current && canvasRef.current) {
+                    canvasRef.current.width = videoRef.current.clientWidth;
+                    canvasRef.current.height = videoRef.current.clientHeight;
+                    draw();
+                }
+            };
+
+            const draw = () => {
+                const ctx = canvasRef.current?.getContext('2d');
+                if (!ctx) return;
+                ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+                state.selections.forEach((sel, i) => {
+                    ctx.strokeStyle = '#6366f1';
+                    ctx.lineWidth = 2;
+                    ctx.setLineDash([]);
+                    ctx.strokeRect(sel.x, sel.y, sel.w, sel.h);
+                    ctx.fillStyle = 'rgba(99, 102, 241, 0.2)';
+                    ctx.fillRect(sel.x, sel.y, sel.w, sel.h);
+                });
+            };
+
+            useEffect(() => { draw(); }, [state.selections, manualMode]);
+
+            const detectIA = async () => {
+                if (!videoRef.current) return;
+                dispatch({ type: 'SET_PROC', payload: true });
+                dispatch({ type: 'SET_STATUS', payload: 'IA Analisando...' });
+
+                try {
+                    const temp = document.createElement('canvas');
+                    temp.width = videoRef.current.videoWidth;
+                    temp.height = videoRef.current.videoHeight;
+                    temp.getContext('2d').drawImage(videoRef.current, 0, 0);
+                    const base64 = temp.toDataURL('image/png').split(',')[1];
+                    
+                    const apiKey = "SUA_API_KEY_AQUI"; // <--- COLOQUE A CHAVE AQUI
+                    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+
+                    const res = await fetch(url, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            contents: [{ parts: [{ text: "Identify bounding boxes of all watermarks, logos and text overlays. Return JSON only: {'marks': [{x, y, w, h}]} where values are 0-100 percentages of image dimensions." }, { inlineData: { mimeType: "image/png", data: base64 } }] }],
+                            generationConfig: { responseMimeType: "application/json" }
+                        })
+                    });
+                    
+                    const data = await res.json();
+                    const result = JSON.parse(data.candidates[0].content.parts[0].text);
+                    
+                    if (result.marks) {
+                        const mapped = result.marks.map(m => ({
+                            x: (m.x / 100) * canvasRef.current.width,
+                            y: (m.y / 100) * canvasRef.current.height,
+                            w: (m.w / 100) * canvasRef.current.width,
+                            h: (m.h / 100) * canvasRef.current.height
+                        }));
+                        dispatch({ type: 'SET_SEL', payload: mapped });
+                        dispatch({ type: 'SET_STATUS', payload: 'IA: Sucesso' });
+                    }
+                } catch (e) {
+                    dispatch({ type: 'SET_STATUS', payload: 'IA falhou. Use o manual.' });
+                    setManualMode(true);
+                }
+                dispatch({ type: 'SET_PROC', payload: false });
+            };
+
+            const startRemoval = async () => {
+                dispatch({ type: 'SET_PROC', payload: true });
+                const video = videoRef.current;
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+
+                const stream = canvas.captureStream(30);
+                const recorder = new MediaRecorder(stream, { mimeType: 'video/webm' });
+                const chunks = [];
+                recorder.ondataavailable = e => chunks.push(e.data);
+                recorder.onstop = () => {
+                    dispatch({ type: 'DONE', payload: URL.createObjectURL(new Blob(chunks, { type: 'video/webm' })) });
+                };
+
+                recorder.start();
+                video.currentTime = 0;
+                video.play();
+
+                const renderFrame = () => {
+                    if (video.paused || video.ended) { recorder.stop(); return; }
+                    ctx.drawImage(video, 0, 0);
+                    state.selections.forEach(sel => {
+                        const sX = video.videoWidth / canvasRef.current.width;
+                        const sY = video.videoHeight / canvasRef.current.height;
+                        ctx.filter = `blur(${state.blurValue}px)`;
+                        ctx.drawImage(video, sel.x*sX, sel.y*sY, sel.w*sX, sel.h*sY, sel.x*sX, sel.y*sY, sel.w*sX, sel.h*sY);
+                        ctx.filter = 'none';
+                    });
+                    dispatch({ type: 'SET_PROG', payload: (video.currentTime / video.duration) * 100 });
+                    requestAnimationFrame(renderFrame);
+                };
+                renderFrame();
+            };
+
+            return (
+                <div className="flex flex-col h-full p-4 gap-4 overflow-hidden max-w-6xl mx-auto w-full">
+                    {/* Header Compacto */}
+                    <header className="flex justify-between items-center bg-slate-900/80 p-3 rounded-2xl border border-slate-800 shrink-0 shadow-2xl">
+                        <div className="flex items-center gap-3">
+                            <div className="bg-indigo-600 p-2 rounded-xl shadow-lg shadow-indigo-500/20"><Icon name="shield-check" /></div>
+                            <h1 className="font-black uppercase tracking-tighter text-sm">Ultimate <span className="text-indigo-500">Editor</span></h1>
+                        </div>
+                        <div className="flex items-center gap-3">
+                            <span className="text-[10px] font-bold text-slate-500 uppercase bg-slate-800 px-3 py-1 rounded-lg border border-slate-700">{state.status}</span>
+                            {state.isProcessing && <div className="text-[10px] font-mono text-indigo-400 animate-pulse">{Math.round(state.progress)}%</div>}
+                        </div>
+                    </header>
+
+                    {!state.videoSrc ? (
+                        <label className="flex-1 border-2 border-dashed border-slate-800 rounded-3xl flex flex-col items-center justify-center cursor-pointer hover:bg-indigo-500/5 transition-all group">
+                            <input type="file" className="hidden" onChange={e => dispatch({ type: 'LOAD', payload: URL.createObjectURL(e.target.files[0]) })} accept="video/*" />
+                            <div className="bg-slate-900 p-6 rounded-full mb-4 group-hover:scale-110 transition-transform"><Icon name="upload" size={32} className="text-indigo-500" /></div>
+                            <span className="font-black uppercase tracking-[0.2em] text-xs text-slate-400">Importar arquivo de vídeo</span>
+                        </label>
+                    ) : (
+                        <div className="flex flex-col md:flex-row flex-1 gap-4 min-h-0">
+                            {/* Player e Canvas */}
+                            <div className="flex-[2.5] flex flex-col gap-3 min-h-0">
+                                <div className={`video-container ${manualMode ? 'manual-active' : ''}`}>
+                                    {!state.processedVideoSrc ? (
+                                        <>
+                                            <video ref={videoRef} src={state.videoSrc} className="w-full h-full object-contain" muted onLoadedData={syncCanvas} />
+                                            <canvas ref={canvasRef} className="absolute top-0 left-0 w-full h-full z-20 cursor-crosshair" 
+                                                onMouseDown={e => {
+                                                    const r = canvasRef.current.getBoundingClientRect();
+                                                    selectionStart.current = { x: e.clientX - r.left, y: e.clientY - r.top };
+                                                }}
+                                                onMouseUp={e => {
+                                                    const r = canvasRef.current.getBoundingClientRect();
+                                                    const curX = e.clientX - r.left, curY = e.clientY - r.top;
+                                                    const n = { x: Math.min(selectionStart.current.x, curX), y: Math.min(selectionStart.current.y, curY), w: Math.max(10, Math.abs(curX - selectionStart.current.x)), h: Math.max(10, Math.abs(curY - selectionStart.current.y)) };
+                                                    dispatch({ type: 'SET_SEL', payload: [...state.selections, n] });
+                                                    selectionStart.current = null;
+                                                    setManualMode(false);
+                                                }}
+                                            />
+                                            {manualMode && (
+                                                <div className="absolute top-4 left-1/2 -translate-x-1/2 z-30 bg-indigo-600 px-4 py-1 rounded-full text-[10px] font-black uppercase tracking-widest animate-bounce">
+                                                    Arraste o mouse para marcar a área
+                                                </div>
+                                            )}
+                                        </>
+                                    ) : (
+                                        <video src={state.processedVideoSrc} controls className="w-full h-full object-contain" autoPlay />
+                                    )}
+                                </div>
+                                
+                                <div className="bg-slate-900/50 p-3 rounded-2xl flex justify-between items-center shrink-0 border border-slate-800">
+                                    <button onClick={() => videoRef.current.paused ? videoRef.current.play() : videoRef.current.pause()} className="hover:text-indigo-500 transition-colors">
+                                        <Icon name={state.isPlaying ? "pause" : "play"} size={22} />
+                                    </button>
+                                    <div className="flex gap-4">
+                                        <button onClick={() => dispatch({ type: 'SET_SEL', payload: [] })} className="text-slate-500 hover:text-red-500 transition-colors"><Icon name="trash-2" /></button>
+                                        <button onClick={() => window.location.reload()} className="text-slate-500 hover:text-white transition-colors"><Icon name="rotate-cw" /></button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Controles Laterais */}
+                            <div className="flex-1 flex flex-col gap-3 min-w-[260px] overflow-y-auto custom-scrollbar shrink-0">
+                                <div className="bg-slate-900/80 p-5 rounded-3xl border border-slate-800 space-y-6 shadow-xl">
+                                    <div className="space-y-3">
+                                        <button onClick={detectIA} disabled={state.isProcessing} className="w-full bg-indigo-600 text-white py-3 rounded-xl font-black uppercase text-[10px] hover:bg-indigo-500 transition-all flex items-center justify-center gap-2 glow-button">
+                                            <Icon name="sparkles" size={14} /> Detetar com IA
+                                        </button>
+                                        
+                                        <button onClick={() => setManualMode(!manualMode)} className={`w-full py-3 rounded-xl font-black uppercase text-[10px] transition-all flex items-center justify-center gap-2 border ${manualMode ? 'bg-indigo-500/20 border-indigo-500 text-indigo-400' : 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700'}`}>
+                                            <Icon name="mouse-pointer-2" size={14} /> Marcar Manualmente
+                                        </button>
+                                    </div>
+
+                                    <div className="h-px bg-slate-800 w-full"></div>
+
+                                    <div className="space-y-4">
+                                        <div className="flex justify-between text-[10px] font-black text-slate-500 uppercase tracking-tighter">
+                                            <span>Intensidade Blur</span>
+                                            <span className="text-indigo-400">{state.blurValue}px</span>
+                                        </div>
+                                        <input type="range" min="5" max="150" value={state.blurValue} onChange={e => dispatch({ type: 'SET_BLUR', payload: e.target.value })} className="w-full accent-indigo-500 bg-slate-800" />
+                                    </div>
+
+                                    {!state.processedVideoSrc ? (
+                                        <button onClick={startRemoval} disabled={state.isProcessing || state.selections.length === 0} className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 py-4 rounded-2xl font-black uppercase text-xs shadow-lg shadow-indigo-500/20 hover:brightness-110 active:scale-95 transition-all">
+                                            Exportar Vídeo Limpo
+                                        </button>
+                                    ) : (
+                                        <a href={state.processedVideoSrc} download="video_sem_marca.webm" className="w-full bg-green-600 py-4 rounded-2xl font-black uppercase text-xs text-center block shadow-lg shadow-green-500/20 hover:bg-green-500 transition-all">
+                                            Baixar Agora
+                                        </a>
+                                    )}
+                                </div>
+                                
+                                <div className="bg-slate-900/40 border border-slate-800 p-4 rounded-2xl italic">
+                                    <p className="text-[10px] text-slate-500 leading-tight">Dica: Selecione a área da marca d'água o mais próximo possível das bordas para um resultado melhor.</p>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
