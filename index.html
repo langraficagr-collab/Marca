@@ -1,6 +1,8 @@
 <!DOCTYPE html>
 <html lang="pt-pt">
 <head>
+    <link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#6366f1">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Editor Pro - Edição Dinâmica</title>
@@ -318,6 +320,43 @@
             showUI('editor-ui');
             setTimeout(sync, 100);
         };
+        // Registrar Service Worker
+if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('sw.js');
+}
+
+let deferredPrompt;
+const installBtn = document.createElement('button');
+
+// Estilização do botão de instalação (inserido via JS para facilitar)
+installBtn.innerHTML = 'Instalar App';
+installBtn.className = "hidden fixed bottom-6 right-6 bg-indigo-600 text-white text-[10px] font-black px-6 py-3 rounded-full shadow-2xl border border-indigo-400 z-[100] uppercase tracking-widest";
+document.body.appendChild(installBtn);
+
+window.addEventListener('beforeinstallprompt', (e) => {
+    // Impede o Chrome de mostrar o banner automático
+    e.preventDefault();
+    deferredPrompt = e;
+    // Mostra o nosso botão customizado
+    installBtn.classList.remove('hidden');
+});
+
+installBtn.addEventListener('click', async () => {
+    if (deferredPrompt) {
+        deferredPrompt.prompt();
+        const { outcome } = await deferredPrompt.userChoice;
+        if (outcome === 'accepted') {
+            console.log('Usuário aceitou a instalação');
+        }
+        deferredPrompt = null;
+        installBtn.classList.add('hidden');
+    }
+});
+
+window.addEventListener('appinstalled', () => {
+    installBtn.classList.add('hidden');
+    console.log('App instalado com sucesso!');
+});
     </script>
     <input type="file" id="file-input" class="hidden" accept="video/*">
 </body>
