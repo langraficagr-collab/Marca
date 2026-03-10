@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ultimate Editor Pro - IA & Manual</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <style>
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #334155; border-radius: 10px; }
+        @keyframes pulse-border {
+            0%, 100% { border-color: rgba(99, 102, 241, 0.3); }
+            50% { border-color: rgba(99, 102, 241, 0.8); }
+        }
+        .animate-pulse-slow { animation: pulse-border 3s infinite; }
+    </style>
+</head>
+<body class="bg-[#020617] text-slate-100 font-sans overflow-hidden">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useReducer, useRef, useEffect, useCallback, useState } = React;
+
+        // Ícones Mock (Como o Lucide-React não funciona nativamente via CDN sem build, usamos ícones SVG diretos ou a lib lucide global)
+        const Icon = ({ name, size = 20, className = "" }) => {
+            useEffect(() => { lucide.createIcons(); }, []);
+            return <i data-lucide={name} style={{ width: size, height: size }} className={className}></i>;
+        };
+
+        const initialState = {
+            videoSrc: null, processedVideoSrc: null, selections: [],
+            isProcessing: false, progress: 0, isPlaying: false,
+            blurValue: 50, padding: 10, status: 'Sistema Pronto',
+            error: null, mimeType: 'video/webm'
+        };
+
+        function reducer(state, action) {
+            switch (action.type) {
+                case 'LOAD_VIDEO': return { ...state, videoSrc: action.payload, selections: [], processedVideoSrc: null, status: 'Vídeo Importado', progress: 0, error: null };
+                case 'SET_STATUS': return { ...state, status: action.payload };
+                case 'SET_PROCESSING': return { ...state, isProcessing: action.payload };
+                case 'SET_PROGRESS': return { ...state, progress: action.payload };
+                case 'SET_PLAYING': return { ...state, isPlaying: action.payload };
+                case 'SET_SELECTIONS': return { ...state, selections: action.payload };
+                case 'REMOVE_SELECTION': return { ...state, selections: state.selections.filter((_, i) => i !== action.payload) };
+                case 'SET_PROCESSED': return { ...state, processedVideoSrc: action.payload };
+                case 'SET_BLUR': return { ...state, blurValue: action.payload };
+                case 'SET_PADDING': return { ...state, padding: action.payload };
+                case 'SET_MIME': return { ...state, mimeType: action.payload };
+                case 'SET_ERROR': return { ...state, error: action.payload, isProcessing: false, status: 'Erro Crítico' };
+                default: return state;
+            }
+        }
+
+        function App() {
+            const [state, dispatch] = useReducer(reducer, initialState);
+            const videoRef = useRef(null);
+            const canvasRef = useRef(null);
+            const selectionStart = useRef(null);
+
+            useEffect(() => {
+                const types = ['video/webm;codecs=vp9', 'video/webm', 'video/mp4'];
+                for (const type of types) {
+                    if (MediaRecorder.isTypeSupported(type)) {
+                        dispatch({ type: 'SET_MIME', payload: type });
+                        break;
+                    }
+                }
+            }, []);
+
+            const drawOverlay = useCallback(() => {
+                const ctx = canvasRef.current?.getContext('2d');
+                if (!ctx) return;
+                ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+                state.selections.forEach((sel, i) => {
+                    ctx.strokeStyle = '#6366f1';
+                    ctx.lineWidth = 2;
+                    ctx.strokeRect(sel.x, sel.y, sel.w, sel.h);
+                    ctx.fillStyle = 'rgba(99, 102, 241, 0.2)';
+                    ctx.fillRect(sel.x, sel.y, sel.w, sel.h);
+                    ctx.fillStyle = '#ef4444';
+                    ctx.fillRect(sel.x + sel.w - 14, sel.y, 14, 14);
+                    ctx.fillStyle = '#fff';
+                    ctx.font = 'bold 10px sans-serif';
+                    ctx.fillText('×', sel.x + sel.w - 10, sel.y + 10);
+                });
+            }, [state.selections]);
+
+            const syncCanvas = useCallback(() => {
+                if (videoRef.current && canvasRef.current) {
+                    canvasRef.current.width = videoRef.current.offsetWidth;
+                    canvasRef.current.height = videoRef.current.offsetHeight;
+                    drawOverlay();
+                }
+            }, [drawOverlay]);
+
+            useEffect(() => {
+                window.addEventListener('resize', syncCanvas);
+                return () => window.removeEventListener('resize', syncCanvas);
+            }, [syncCanvas]);
+
+            const handleFile = (e) => {
+                const file = e.target.files[0];
+                if (file) dispatch({ type: 'LOAD_VIDEO', payload: URL.createObjectURL(file) });
+            };
+
+            const detectIA = async () => {
+                dispatch({ type: 'SET_PROCESSING', payload: true });
+                dispatch({ type: 'SET_STATUS', payload: 'IA simulando detecção...' });
+                // Simulação de delay para fins de UI
+                setTimeout(() => {
+                    dispatch({ type: 'SET_STATUS', payload: 'Erro: API Key não configurada no código.' });
+                    dispatch({ type: 'SET_PROCESSING', payload: false });
+                }, 1500);
+            };
+
+            const startRemoval = async () => {
+                if (state.selections.length === 0) return;
+                dispatch({ type: 'SET_PROCESSING', payload: true });
+                const video = videoRef.current;
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+
+                const stream = canvas.captureStream(30);
+                const recorder = new MediaRecorder(stream, { mimeType: state.mimeType });
+                const chunks = [];
+                recorder.ondataavailable = e => chunks.push(e.data);
+                recorder.onstop = () => {
+                    const url = URL.createObjectURL(new Blob(chunks, { type: state.mimeType }));
+                    dispatch({ type: 'SET_PROCESSED', payload: url });
+                    dispatch({ type: 'SET_PROCESSING', payload: false });
+                };
+
+                recorder.start();
+                video.currentTime = 0;
+                video.play();
+
+                const renderFrame = () => {
+                    if (video.paused || video.ended) { recorder.stop(); return; }
+                    ctx.drawImage(video, 0, 0);
+                    state.selections.forEach(sel => {
+                        const sX = video.videoWidth / canvasRef.current.width;
+                        const sY = video.videoHeight / canvasRef.current.height;
+                        ctx.filter = `blur(${state.blurValue}px)`;
+                        ctx.drawImage(video, sel.x*sX, sel.y*sY, sel.w*sX, sel.h*sY, sel.x*sX, sel.y*sY, sel.w*sX, sel.h*sY);
+                        ctx.filter = 'none';
+                    });
+                    dispatch({ type: 'SET_PROGRESS', payload: (video.currentTime / video.duration) * 100 });
+                    requestAnimationFrame(renderFrame);
+                };
+                renderFrame();
+            };
+
+            return (
+                <div className="flex flex-col h-screen p-4">
+                    <header className="flex justify-between items-center mb-6 bg-slate-900/60 p-5 rounded-[2rem] border border-slate-800 backdrop-blur-xl">
+                        <div className="flex items-center gap-4">
+                            <div className="bg-indigo-600 p-2 rounded-xl"><Icon name="shield-check" /></div>
+                            <h1 className="text-xl font-black italic uppercase">Ultimate <span className="text-indigo-500">Editor</span></h1>
+                        </div>
+                        {state.isProcessing && (
+                            <div className="flex items-center gap-4 bg-slate-950 px-5 py-2 rounded-2xl border border-indigo-500/30">
+                                <span className="text-xs font-mono">{Math.round(state.progress)}%</span>
+                            </div>
+                        )}
+                    </header>
+
+                    {!state.videoSrc ? (
+                        <label className="flex-1 border-2 border-dashed border-slate-800 rounded-[3rem] flex flex-col items-center justify-center cursor-pointer hover:bg-indigo-500/5 transition-all">
+                            <input type="file" className="hidden" onChange={handleFile} accept="video/*" />
+                            <Icon name="refresh-cw" size={48} className="text-indigo-500 mb-4" />
+                            <h2 className="text-2xl font-black uppercase italic">Importar Vídeo</h2>
+                        </label>
+                    ) : (
+                        <div className="flex-1 flex flex-col lg:flex-row gap-6 min-h-0">
+                            <div className="flex-[2.5] flex flex-col gap-4">
+                                <div className="relative flex-1 bg-black rounded-[2.5rem] overflow-hidden border border-slate-800 flex items-center justify-center">
+                                    {!state.processedVideoSrc ? (
+                                        <>
+                                            <video ref={videoRef} src={state.videoSrc} className="w-full h-full object-contain" muted onLoadedData={syncCanvas} />
+                                            <canvas ref={canvasRef} className="absolute top-0 left-0 w-full h-full z-20 cursor-crosshair" 
+                                                onMouseDown={(e) => {
+                                                    const r = canvasRef.current.getBoundingClientRect();
+                                                    selectionStart.current = { x: e.clientX - r.left, y: e.clientY - r.top };
+                                                }}
+                                                onMouseUp={(e) => {
+                                                    const r = canvasRef.current.getBoundingClientRect();
+                                                    const curX = e.clientX - r.left, curY = e.clientY - r.top;
+                                                    const n = { x: Math.min(selectionStart.current.x, curX), y: Math.min(selectionStart.current.y, curY), w: Math.abs(curX - selectionStart.current.x), h: Math.abs(curY - selectionStart.current.y) };
+                                                    if (n.w > 10) dispatch({ type: 'SET_SELECTIONS', payload: [...state.selections, n] });
+                                                    selectionStart.current = null; drawOverlay();
+                                                }}
+                                            />
+                                        </>
+                                    ) : (
+                                        <video src={state.processedVideoSrc} controls className="w-full h-full object-contain" autoPlay />
+                                    )}
+                                </div>
+                                <div className="bg-slate-900/40 p-4 rounded-3xl border border-slate-800 flex justify-between items-center">
+                                    <button onClick={() => videoRef.current.paused ? videoRef.current.play() : videoRef.current.pause()}><Icon name={state.isPlaying ? "pause" : "play"} /></button>
+                                    <span className="text-[10px] uppercase font-bold text-slate-500">{state.status}</span>
+                                    <button onClick={() => window.location.reload()}><Icon name="trash-2" className="text-red-500/50" /></button>
+                                </div>
+                            </div>
+
+                            <div className="flex-1 flex flex-col gap-4">
+                                <div className="bg-slate-900/60 p-6 rounded-[2.5rem] border border-slate-800 space-y-6">
+                                    <button onClick={detectIA} className="w-full bg-white text-black py-3 rounded-xl font-black uppercase text-xs flex items-center justify-center gap-2">
+                                        <Icon name="wand-2" size={16}/> Detetar Logos (IA)
+                                    </button>
+                                    <div className="space-y-4">
+                                        <input type="range" min="10" max="150" value={state.blurValue} onChange={e => dispatch({ type: 'SET_BLUR', payload: e.target.value })} className="w-full" />
+                                        <label className="text-[10px] uppercase text-slate-500">Intensidade: {state.blurValue}px</label>
+                                    </div>
+                                    {!state.processedVideoSrc ? (
+                                        <button onClick={startRemoval} className="w-full bg-indigo-600 py-4 rounded-3xl font-black uppercase text-sm">Gerar Vídeo</button>
+                                    ) : (
+                                        <a href={state.processedVideoSrc} download="video_limpo.webm" className="w-full bg-green-600 py-4 rounded-3xl font-black uppercase text-sm text-center block">Baixar Agora</a>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
