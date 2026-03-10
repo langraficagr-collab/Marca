@@ -3,86 +3,81 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Editor Pro - Áudio & FullScreen</title>
+    <title>Editor Pro - Fix Áudio & Escala</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        :root { --app-height: 100dvh; }
-        body { 
+        body, html { 
+            margin: 0; padding: 0; 
+            height: 100dvh; width: 100vw; 
+            overflow: hidden; 
             background: #020617; 
-            color: #f8fafc; 
-            height: var(--app-height); 
-            overflow: hidden; 
-            margin: 0; 
-            display: flex; 
-            flex-direction: column; 
+            font-family: ui-sans-serif, system-ui, sans-serif;
         }
-        .main-container { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+        #root { 
+            display: flex; flex-direction: column; 
+            height: 100dvh; padding: 12px; gap: 12px; 
+        }
         .video-box { 
-            position: relative; 
-            background: #000; 
-            flex: 1; 
-            min-height: 0; 
-            border-radius: 1.5rem; 
-            overflow: hidden; 
+            position: relative; background: #000; 
+            flex: 1; min-height: 0; 
+            border-radius: 1.5rem; overflow: hidden; 
             border: 1px solid #1e293b;
-            display: flex;
-            align-items: center;
-            justify-content: center;
+            display: flex; align-items: center; justify-content: center;
         }
         canvas { position: absolute; z-index: 50; touch-action: none; cursor: crosshair; }
-        video { max-width: 100%; max-height: 100%; pointer-events: none; }
+        video { max-width: 100%; max-height: 100%; pointer-events: none; visibility: visible; }
+        input[type=range] { accent-color: #6366f1; }
     </style>
 </head>
-<body class="p-3 md:p-4 gap-3">
-
-    <header class="flex justify-between items-center bg-slate-900/90 p-3 rounded-2xl border border-slate-800 shrink-0">
-        <div class="flex items-center gap-2">
-            <div class="bg-indigo-600 p-1.5 rounded-lg text-white">
-                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+<body>
+    <div id="root">
+        <header class="flex justify-between items-center bg-slate-900/90 p-3 rounded-2xl border border-slate-800 shrink-0 shadow-lg">
+            <div class="flex items-center gap-2">
+                <div class="bg-indigo-600 p-1.5 rounded-lg text-white">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                </div>
+                <h1 class="font-black text-xs uppercase italic tracking-tighter">Editor <span class="text-indigo-500 font-bold">Pro</span></h1>
             </div>
-            <h1 class="font-black text-xs uppercase italic">Editor <span class="text-indigo-500">Pro</span></h1>
-        </div>
-        <div id="status" class="text-[9px] font-bold px-2 py-0.5 bg-slate-800 rounded-full text-indigo-400">PRONTO</div>
-    </header>
+            <div id="status" class="text-[9px] font-black px-2.5 py-1 bg-slate-950 rounded-full text-indigo-400 border border-indigo-500/20">PRONTO</div>
+        </header>
 
-    <div id="upload-zone" class="flex-1 border-2 border-dashed border-slate-800 rounded-[2rem] flex flex-col items-center justify-center cursor-pointer hover:bg-slate-900/40 transition-all">
-        <input type="file" id="input-file" class="hidden" accept="video/*">
-        <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#6366f1" stroke-width="1.5" class="mb-2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>
-        <p class="text-[10px] font-bold uppercase tracking-widest text-slate-500 text-center px-4">Toque para selecionar o vídeo</p>
-    </div>
-
-    <div id="editor-ui" class="hidden main-container gap-3">
-        <div class="video-box shadow-2xl">
-            <video id="v-player" muted playsinline></video>
-            <canvas id="v-canvas"></canvas>
+        <div id="upload-zone" class="flex-1 border-2 border-dashed border-slate-800 rounded-[2rem] flex flex-col items-center justify-center cursor-pointer hover:bg-slate-900/40 transition-all">
+            <input type="file" id="input-file" class="hidden" accept="video/*">
+            <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#6366f1" stroke-width="1.5" class="mb-2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>
+            <p class="text-[10px] font-bold uppercase tracking-widest text-slate-500">Selecionar Vídeo</p>
         </div>
 
-        <aside class="flex flex-col gap-3 shrink-0">
-            <div class="bg-slate-900/80 p-4 rounded-[1.5rem] border border-slate-800 space-y-4">
-                <div class="flex items-center justify-between gap-4">
+        <div id="editor-ui" class="hidden flex-1 flex flex-col gap-3 min-h-0">
+            <div class="video-box shadow-2xl">
+                <video id="v-player" muted playsinline crossOrigin="anonymous"></video>
+                <canvas id="v-canvas"></canvas>
+            </div>
+
+            <aside class="bg-slate-900/80 p-4 rounded-[1.8rem] border border-slate-800 space-y-4 shrink-0 shadow-2xl">
+                <div class="flex items-center gap-4">
                     <div class="flex-1">
-                        <div class="flex justify-between text-[9px] font-black text-slate-500 uppercase mb-1">
-                            <span>Blur</span>
-                            <span id="blur-val" class="text-indigo-400">40px</span>
+                        <div class="flex justify-between text-[9px] font-black text-slate-500 uppercase mb-1 px-1">
+                            <span>Intensidade Blur</span>
+                            <span id="blur-val" class="text-indigo-400">45px</span>
                         </div>
-                        <input type="range" id="blur-input" min="5" max="120" value="40" class="w-full accent-indigo-500">
+                        <input type="range" id="blur-input" min="10" max="150" value="45" class="w-full">
                     </div>
-                    <button id="clear-btn" class="bg-slate-800 p-3 rounded-xl text-slate-400 hover:text-red-500 transition-colors">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                    <button id="clear-btn" class="bg-slate-950 p-3 rounded-xl text-slate-500 hover:text-red-500 border border-slate-800 transition-all">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
                     </button>
                 </div>
 
-                <button id="process-btn" class="w-full bg-indigo-600 py-3.5 rounded-xl font-black uppercase text-xs shadow-lg shadow-indigo-500/20 active:scale-95 transition-all">
-                    Gerar Vídeo com Áudio
+                <button id="process-btn" class="w-full bg-indigo-600 py-4 rounded-2xl font-black uppercase text-[11px] shadow-lg shadow-indigo-500/20 active:scale-95 transition-all text-white">
+                    Processar com Áudio Original
                 </button>
 
                 <div id="done-box" class="hidden">
-                    <a id="dl-link" class="w-full bg-emerald-600 py-3.5 rounded-xl font-black uppercase text-xs text-center block shadow-lg shadow-emerald-500/20">
-                        Baixar Vídeo Limpo
+                    <a id="dl-link" class="w-full bg-emerald-600 py-4 rounded-2xl font-black uppercase text-[11px] text-center block shadow-lg shadow-emerald-500/20 text-white">
+                        Baixar Vídeo Finalizado
                     </a>
                 </div>
-            </div>
-        </aside>
+            </aside>
+        </div>
     </div>
 
     <script>
@@ -94,6 +89,7 @@
         const status = document.getElementById('status');
 
         let areas = [], drawing = false, sx, sy;
+        let audioCtx, source, destination;
 
         // Iniciar
         document.getElementById('upload-zone').onclick = () => document.getElementById('input-file').click();
@@ -103,6 +99,7 @@
             video.src = URL.createObjectURL(file);
             document.getElementById('upload-zone').classList.add('hidden');
             document.getElementById('editor-ui').classList.remove('hidden');
+            status.innerText = "CARREGADO";
         };
 
         const sync = () => {
@@ -113,7 +110,7 @@
         video.onloadeddata = sync;
         window.onresize = sync;
 
-        // Toque / Mouse
+        // Desenho
         const getXY = (e) => {
             const r = canvas.getBoundingClientRect();
             const cx = e.touches ? e.touches[0].clientX : e.clientX;
@@ -127,7 +124,7 @@
             const p = getXY(e);
             draw();
             ctx.strokeStyle = '#6366f1';
-            ctx.setLineDash([4, 4]);
+            ctx.setLineDash([5, 5]);
             ctx.strokeRect(sx, sy, p.x - sx, p.y - sy);
         };
         const stop = (e) => {
@@ -150,7 +147,7 @@
             areas.forEach(a => {
                 ctx.strokeStyle = '#6366f1'; ctx.lineWidth = 2;
                 ctx.strokeRect(a.x, a.y, a.w, a.h);
-                ctx.fillStyle = 'rgba(99, 102, 241, 0.2)';
+                ctx.fillStyle = 'rgba(99, 102, 241, 0.25)';
                 ctx.fillRect(a.x, a.y, a.w, a.h);
             });
         }
@@ -158,31 +155,34 @@
         document.getElementById('clear-btn').onclick = () => { areas = []; draw(); };
         blurInput.oninput = () => document.getElementById('blur-val').innerText = blurInput.value + 'px';
 
-        // Processamento com Áudio
+        // Processamento Mestre
         processBtn.onclick = async () => {
             if (!areas.length) return;
             processBtn.disabled = true;
-            status.innerText = "PROCESSANDO...";
+            status.innerText = "GRAVANDO...";
 
             const fCanv = document.createElement('canvas');
             const fCtx = fCanv.getContext('2d', { alpha: false });
             fCanv.width = video.videoWidth;
             fCanv.height = video.videoHeight;
 
-            // CAPTURA DE ÁUDIO E VÍDEO COMBINADOS
-            const canvasStream = fCanv.captureStream(30);
+            const stream = fCanv.captureStream(30);
+
+            // FIX DE ÁUDIO: AudioContext para capturar o som do elemento de vídeo
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                source = audioCtx.createMediaElementSource(video);
+                destination = audioCtx.createMediaStreamDestination();
+                source.connect(destination);
+                source.connect(audioCtx.destination); // Para o usuário ouvir também
+            }
             
-            try {
-                // Tenta capturar o stream do vídeo original para extrair o áudio
-                const videoStream = video.captureStream ? video.captureStream() : video.mozCaptureStream();
-                const audioTracks = videoStream.getAudioTracks();
-                if (audioTracks.length > 0) {
-                    canvasStream.addTrack(audioTracks[0]);
-                }
-            } catch (e) { console.warn("Erro ao capturar áudio original"); }
+            if (destination.stream.getAudioTracks().length > 0) {
+                stream.addTrack(destination.stream.getAudioTracks()[0]);
+            }
 
             const mime = MediaRecorder.isTypeSupported('video/mp4') ? 'video/mp4' : 'video/webm';
-            const recorder = new MediaRecorder(canvasStream, { mimeType: mime, videoBitsPerSecond: 5000000 });
+            const recorder = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 8000000 });
             const chunks = [];
 
             recorder.ondataavailable = e => chunks.push(e.data);
@@ -190,26 +190,38 @@
                 const url = URL.createObjectURL(new Blob(chunks, { type: mime }));
                 document.getElementById('done-box').classList.remove('hidden');
                 document.getElementById('dl-link').href = url;
-                document.getElementById('dl-link').download = `limpo.${mime.split('/')[1]}`;
+                document.getElementById('dl-link').download = `limpo_${Date.now()}.${mime.split('/')[1]}`;
                 status.innerText = "CONCLUÍDO";
                 processBtn.disabled = false;
+                video.muted = true;
             };
 
             video.currentTime = 0;
+            video.muted = false; // PRECISA estar desmutado para o áudio ser capturado no stream
+            video.volume = 1.0;
+            
             recorder.start();
-            video.muted = false; // Desmuta para garantir que o stream capture o som
             await video.play();
 
             const render = () => {
-                if (video.paused || video.ended) { recorder.stop(); video.muted = true; return; }
+                if (video.paused || video.ended) { recorder.stop(); return; }
 
+                // Desenha frame original
                 fCtx.drawImage(video, 0, 0);
-                const sX = video.videoWidth / canvas.width;
-                const sY = video.videoHeight / canvas.height;
 
+                // Escala real entre tela e pixels do vídeo
+                const scaleX = video.videoWidth / canvas.width;
+                const scaleY = video.videoHeight / canvas.height;
+
+                // Aplica desfoque nas áreas
                 fCtx.filter = `blur(${blurInput.value}px)`;
                 areas.forEach(a => {
-                    fCtx.drawImage(video, a.x*sX, a.y*sY, a.w*sX, a.h*sY, a.x*sX, a.y*sY, a.w*sX, a.h*sY);
+                    // Mapeia coordenadas da tela para o canvas final de alta resolução
+                    fCtx.drawImage(
+                        video, 
+                        a.x * scaleX, a.y * scaleY, a.w * scaleX, a.h * scaleY, // Origem
+                        a.x * scaleX, a.y * scaleY, a.w * scaleX, a.h * scaleY  // Destino
+                    );
                 });
                 fCtx.filter = 'none';
 
