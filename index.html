@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Editor Pro - Som & Escala</title>
+    <title>Editor Pro - Edição Dinâmica</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         body, html { 
@@ -24,7 +24,9 @@
             overflow: hidden;
         }
         canvas { position: absolute; z-index: 10; touch-action: none; cursor: crosshair; }
-        video { max-width: 100%; max-height: 100%; pointer-events: none; }
+        video { max-width: 100%; max-height: 100%; }
+        .no-ptr { pointer-events: none; }
+        input[type=range] { accent-color: #6366f1; }
     </style>
 </head>
 <body class="text-slate-100 font-sans">
@@ -39,77 +41,159 @@
             <div id="status" class="text-[9px] font-black px-3 py-1 bg-slate-800 rounded-full text-indigo-400">PRONTO</div>
         </header>
 
-        <!-- Zona Inicial -->
+        <!-- Zona de Upload -->
         <div id="upload-box" class="flex-1 border-2 border-dashed border-slate-800 rounded-[2rem] flex flex-col items-center justify-center cursor-pointer hover:bg-slate-900/40 transition-all">
             <input type="file" id="file-input" class="hidden" accept="video/*">
             <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#6366f1" stroke-width="1.5" class="mb-2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>
             <p class="text-[10px] font-black uppercase text-slate-500">Selecionar Vídeo</p>
         </div>
 
-        <!-- Interface Principal -->
+        <!-- Interface de Edição -->
         <div id="editor-ui" class="hidden flex-1 flex flex-col gap-3 min-h-0">
             <div class="video-container shadow-2xl">
-                <video id="v-player" muted playsinline crossOrigin="anonymous"></video>
+                <video id="v-player" muted playsinline crossOrigin="anonymous" class="no-ptr"></video>
                 <canvas id="v-canvas"></canvas>
             </div>
 
-            <div class="bg-slate-900/90 p-4 rounded-[1.8rem] border border-slate-800 space-y-4 shrink-0">
+            <div class="bg-slate-900/90 p-4 rounded-[1.8rem] border border-slate-800 space-y-4 shrink-0 shadow-xl">
+                <!-- Controlos de Reprodução -->
+                <div class="flex items-center gap-3 bg-slate-950/50 p-2 rounded-xl border border-slate-800/50">
+                    <button id="play-pause-btn" class="text-indigo-500 hover:text-indigo-400 transition-colors p-1">
+                        <svg id="play-icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                        <svg id="pause-icon" class="hidden" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+                    </button>
+                    <input type="range" id="seek-bar" value="0" step="0.1" class="flex-1 h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer">
+                    <span id="time-display" class="text-[9px] font-mono text-slate-500 min-w-[60px] text-right">00:00</span>
+                </div>
+
                 <div class="flex items-center gap-4">
                     <div class="flex-1">
                         <div class="flex justify-between text-[9px] font-black text-slate-500 uppercase mb-1">
                             <span>Desfoque</span>
                             <span id="blur-val" class="text-indigo-400">40px</span>
                         </div>
-                        <input type="range" id="blur-range" min="5" max="150" value="40" class="w-full accent-indigo-500">
+                        <input type="range" id="blur-range" min="5" max="150" value="40" class="w-full">
                     </div>
                     <button id="clear-btn" class="bg-slate-950 p-3 rounded-xl text-slate-500 hover:text-red-500 border border-slate-800 transition-all">
                         <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
                     </button>
                 </div>
-
                 <button id="process-btn" class="w-full bg-indigo-600 py-4 rounded-2xl font-black uppercase text-[11px] shadow-lg shadow-indigo-500/20 active:scale-95 transition-all">
-                    Processar com Som Original
+                    Gerar Pré-visualização
                 </button>
+            </div>
+        </div>
 
-                <div id="download-box" class="hidden">
-                    <a id="dl-link" class="w-full bg-emerald-600 py-4 rounded-2xl font-black uppercase text-[11px] text-center block shadow-lg shadow-emerald-500/20">
-                        Baixar Vídeo Final
-                    </a>
-                </div>
+        <!-- Interface de Pré-visualização -->
+        <div id="preview-ui" class="hidden flex-1 flex flex-col gap-3 min-h-0">
+            <div class="video-container shadow-2xl border-emerald-500/30">
+                <video id="p-player" controls playsinline class="w-full h-full"></video>
+                <div class="absolute top-4 left-4 bg-emerald-600 text-[8px] font-black px-2 py-1 rounded-md z-20">PRÉ-VISUALIZAÇÃO</div>
+            </div>
+
+            <div class="bg-slate-900/90 p-4 rounded-[1.8rem] border border-slate-800 flex flex-col gap-2 shrink-0">
+                <a id="dl-link" class="w-full bg-emerald-600 py-4 rounded-2xl font-black uppercase text-[11px] text-center block shadow-lg shadow-emerald-500/20 text-white">
+                    Baixar Vídeo Final
+                </a>
+                <button id="back-btn" class="w-full bg-slate-800 py-3 rounded-xl font-black uppercase text-[9px] text-slate-400">
+                    Voltar ao Editor
+                </button>
             </div>
         </div>
     </div>
 
     <script>
         const video = document.getElementById('v-player');
+        const previewVideo = document.getElementById('p-player');
         const canvas = document.getElementById('v-canvas');
         const ctx = canvas.getContext('2d');
         const blurRange = document.getElementById('blur-range');
         const processBtn = document.getElementById('process-btn');
         const status = document.getElementById('status');
+        
+        // Novos elementos de controlo
+        const playPauseBtn = document.getElementById('play-pause-btn');
+        const playIcon = document.getElementById('play-icon');
+        const pauseIcon = document.getElementById('pause-icon');
+        const seekBar = document.getElementById('seek-bar');
+        const timeDisplay = document.getElementById('time-display');
 
         let areas = [], drawing = false, sx, sy;
         let audioCtx, source, dest;
+
+        // Gestão de Ecrãs
+        const showUI = (id) => {
+            ['upload-box', 'editor-ui', 'preview-ui'].forEach(ui => {
+                document.getElementById(ui).classList.toggle('hidden', ui !== id);
+            });
+        };
 
         // Upload
         document.getElementById('upload-box').onclick = () => document.getElementById('file-input').click();
         document.getElementById('file-input').onchange = (e) => {
             const file = e.target.files[0];
             if (!file) return;
-            video.src = URL.createObjectURL(file);
-            document.getElementById('upload-box').classList.add('hidden');
-            document.getElementById('editor-ui').classList.remove('hidden');
+            const url = URL.createObjectURL(file);
+            video.src = url;
+            showUI('editor-ui');
+            video.onloadedmetadata = () => {
+                sync();
+                seekBar.max = video.duration;
+            };
         };
 
+        // Controlo de Reprodução no Editor
+        playPauseBtn.onclick = () => {
+            if (video.paused) {
+                video.play();
+                playIcon.classList.add('hidden');
+                pauseIcon.classList.remove('hidden');
+            } else {
+                video.pause();
+                playIcon.classList.remove('hidden');
+                pauseIcon.classList.add('hidden');
+            }
+        };
+
+        video.ontimeupdate = () => {
+            if (!drawing) {
+                seekBar.value = video.currentTime;
+                const mins = Math.floor(video.currentTime / 60);
+                const secs = Math.floor(video.currentTime % 60);
+                timeDisplay.innerText = `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+            }
+        };
+
+        seekBar.oninput = () => {
+            video.currentTime = seekBar.value;
+        };
+
+        // Sincronização do Canvas
         const sync = () => {
-            canvas.width = video.clientWidth;
-            canvas.height = video.clientHeight;
+            if (!video.videoWidth) return;
+            const videoRatio = video.videoWidth / video.videoHeight;
+            const container = video.parentElement;
+            const containerRatio = container.clientWidth / container.clientHeight;
+
+            let w, h;
+            if (containerRatio > videoRatio) {
+                h = container.clientHeight;
+                w = h * videoRatio;
+            } else {
+                w = container.clientWidth;
+                h = w / videoRatio;
+            }
+            
+            canvas.width = w;
+            canvas.height = h;
+            canvas.style.width = w + 'px';
+            canvas.style.height = h + 'px';
             draw();
         };
-        video.onloadeddata = sync;
+
         window.onresize = sync;
 
-        // Gestos
+        // Interação Manual
         const getXY = (e) => {
             const r = canvas.getBoundingClientRect();
             const cx = e.touches ? e.touches[0].clientX : e.clientX;
@@ -117,7 +201,12 @@
             return { x: cx - r.left, y: cy - r.top };
         };
 
-        const start = (e) => { drawing = true; const p = getXY(e); sx = p.x; sy = p.y; };
+        const start = (e) => { 
+            drawing = true; 
+            const p = getXY(e); 
+            sx = p.x; sy = p.y; 
+        };
+
         const move = (e) => {
             if (!drawing) return;
             const p = getXY(e);
@@ -126,6 +215,7 @@
             ctx.setLineDash([5, 5]);
             ctx.strokeRect(sx, sy, p.x - sx, p.y - sy);
         };
+
         const stop = (e) => {
             if (!drawing) return;
             drawing = false;
@@ -154,9 +244,13 @@
         document.getElementById('clear-btn').onclick = () => { areas = []; draw(); };
         blurRange.oninput = () => document.getElementById('blur-val').innerText = blurRange.value + 'px';
 
-        // Motor de Processamento com Áudio
+        // Motor de Processamento
         processBtn.onclick = async () => {
             if (!areas.length) return;
+            video.pause(); // Garante que o vídeo está parado antes de reiniciar para gravar
+            playIcon.classList.remove('hidden');
+            pauseIcon.classList.add('hidden');
+            
             processBtn.disabled = true;
             status.innerText = "GRAVANDO...";
 
@@ -167,7 +261,6 @@
 
             const stream = fCanv.captureStream(30);
 
-            // LOGICA DE SOM: Criar contexto de áudio ao clicar (gesto do usuário)
             if (!audioCtx) {
                 audioCtx = new (window.AudioContext || window.webkitAudioContext)();
                 source = audioCtx.createMediaElementSource(video);
@@ -175,11 +268,8 @@
                 source.connect(dest);
                 source.connect(audioCtx.destination);
             }
-            
-            // Retomar contexto se estiver suspenso (comum em navegadores)
             if (audioCtx.state === 'suspended') await audioCtx.resume();
 
-            // Adicionar a faixa de áudio ao stream da gravação
             const audioTrack = dest.stream.getAudioTracks()[0];
             if (audioTrack) stream.addTrack(audioTrack);
 
@@ -190,40 +280,46 @@
             recorder.ondataavailable = e => chunks.push(e.data);
             recorder.onstop = () => {
                 const blob = new Blob(chunks, { type: mime });
-                document.getElementById('download-box').classList.remove('hidden');
-                document.getElementById('dl-link').href = URL.createObjectURL(blob);
-                document.getElementById('dl-link').download = `video_editado.${mime.split('/')[1]}`;
-                status.innerText = "CONCLUÍDO";
+                const url = URL.createObjectURL(blob);
+                
+                previewVideo.src = url;
+                document.getElementById('dl-link').href = url;
+                document.getElementById('dl-link').download = `limpo_${Date.now()}.${mime.split('/')[1]}`;
+                
+                showUI('preview-ui');
+                status.innerText = "PRONTO";
                 processBtn.disabled = false;
                 video.muted = true;
             };
 
             video.currentTime = 0;
-            video.muted = false; // Desmuta para o AudioContext capturar
-            video.volume = 1;
+            video.muted = false;
             
             recorder.start();
             await video.play();
 
             const render = () => {
                 if (video.paused || video.ended) { recorder.stop(); return; }
-
                 fCtx.drawImage(video, 0, 0);
-                const sX = video.videoWidth / canvas.width;
-                const sY = video.videoHeight / canvas.height;
-
+                const scale = video.videoWidth / canvas.width;
                 fCtx.filter = `blur(${blurRange.value}px)`;
                 areas.forEach(a => {
-                    fCtx.drawImage(video, a.x*sX, a.y*sY, a.w*sX, a.h*sY, a.x*sX, a.y*sY, a.w*sX, a.h*sY);
+                    fCtx.drawImage(video, a.x*scale, a.y*scale, a.w*scale, a.h*scale, a.x*scale, a.y*scale, a.w*scale, a.h*scale);
                 });
                 fCtx.filter = 'none';
-
                 status.innerText = `${Math.round((video.currentTime / video.duration) * 100)}%`;
                 requestAnimationFrame(render);
             };
             render();
         };
+
+        document.getElementById('back-btn').onclick = () => {
+            previewVideo.pause();
+            showUI('editor-ui');
+            setTimeout(sync, 100);
+        };
     </script>
+    <input type="file" id="file-input" class="hidden" accept="video/*">
 </body>
 </html>
 
